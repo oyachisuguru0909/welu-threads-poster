@@ -1,0 +1,45 @@
+name: welu-discord-deliver
+
+on:
+  schedule:
+    - cron: '0 22 * * *'   # 07:00 JST  全タイプ（POST_TYPE空＝all）
+  workflow_dispatch:
+    inputs:
+      post_type:
+        description: 'タイプ（空欄=5本まとめて / 個別指定も可）'
+        required: false
+        type: choice
+        options: ['', all, viral, ranking, insider, career, episode]
+        default: ''
+      dry_run:
+        description: 'true=生成のみ（Discordに送信しない・履歴も更新しない）'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  deliver:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install anthropic requests
+      - name: Deliver to Discord
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          POST_TYPE: ${{ github.event.inputs.post_type }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: python deliver.py
+      - name: Persist history.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add history.json
+          git commit -m "update history [skip ci]" || echo "no changes to commit"
+          git push || echo "nothing to push"
